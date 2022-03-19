@@ -6,7 +6,11 @@
     {
       "name": "Vladimir Yuldashev",
       "email": "misterio92@gmail.com"
-    }
+    },
+     {
+       "name": "softinvest",
+       "email": "gbe@tuta.io"
+     }
   ],
   "require": {
     "php": "^8.0",
