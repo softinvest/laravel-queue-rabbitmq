@@ -13,7 +13,10 @@ use Illuminate\Support\Str;
 use JsonException;
 use PhpAmqpLib\Channel\AMQPChannel;
 use PhpAmqpLib\Connection\AbstractConnection;
+use PhpAmqpLib\Exception\AMQPChannelClosedException;
+use PhpAmqpLib\Exception\AMQPConnectionClosedException;
 use PhpAmqpLib\Exception\AMQPProtocolChannelException;
+use PhpAmqpLib\Exception\AMQPRuntimeException;
 use PhpAmqpLib\Exchange\AMQPExchangeType;
 use PhpAmqpLib\Message\AMQPMessage;
 use PhpAmqpLib\Wire\AMQPTable;
@@ -79,9 +82,9 @@ class RabbitMQQueue extends Queue implements QueueContract
     /**
      * RabbitMQQueue constructor.
      *
-     * @param AbstractConnection $connection
-     * @param string $default
-     * @param array $options
+     * @param  AbstractConnection  $connection
+     * @param  string  $default
+     * @param  array  $options
      */
     public function __construct(
         AbstractConnection $connection,
@@ -160,9 +163,10 @@ class RabbitMQQueue extends Queue implements QueueContract
     /**
      * @param $delay
      * @param $payload
-     * @param null $queue
-     * @param int $attempts
+     * @param  null  $queue
+     * @param  int  $attempts
      * @return mixed
+     *
      * @throws AMQPProtocolChannelException
      */
     public function laterRaw($delay, $payload, $queue = null, $attempts = 0)
@@ -201,10 +205,11 @@ class RabbitMQQueue extends Queue implements QueueContract
     }
 
     /**
-     * @param string $payload
-     * @param null $queue
-     * @param array $options
+     * @param  string  $payload
+     * @param  null  $queue
+     * @param  array  $options
      * @return mixed
+     *
      * @throws AMQPProtocolChannelException
      */
     public function bulkRaw(string $payload, $queue = null, array $options = [])
@@ -254,6 +259,16 @@ class RabbitMQQueue extends Queue implements QueueContract
             }
 
             throw $exception;
+        } catch (AMQPChannelClosedException|AMQPConnectionClosedException $exception) {
+            // Queue::pop used by worker to receive new job
+            // Thrown exception is checked by Illuminate\Database\DetectsLostConnections::causedByLostConnection
+            // Is has to contain one of the several phrases in exception message in order to restart worker
+            // Otherwise worker continues to work with broken connection
+            throw new AMQPRuntimeException(
+                'Lost connection: '.$exception->getMessage(),
+                $exception->getCode(),
+                $exception
+            );
         }
 
         return null;
@@ -279,6 +294,7 @@ class RabbitMQQueue extends Queue implements QueueContract
      * Job class to use.
      *
      * @return string
+     *
      * @throws Throwable
      */
     public function getJobClass(): string
@@ -297,7 +313,7 @@ class RabbitMQQueue extends Queue implements QueueContract
     /**
      * Gets a queue/destination, by default the queue option set on the connection.
      *
-     * @param null $queue
+     * @param  null  $queue
      * @return string
      */
     public function getQueue($queue = null): string
@@ -309,8 +325,9 @@ class RabbitMQQueue extends Queue implements QueueContract
      * Checks if the given exchange already present/defined in RabbitMQ.
      * Returns false when when the exchange is missing.
      *
-     * @param string $exchange
+     * @param  string  $exchange
      * @return bool
+     *
      * @throws AMQPProtocolChannelException
      */
     public function isExchangeExists(string $exchange): bool
@@ -340,11 +357,11 @@ class RabbitMQQueue extends Queue implements QueueContract
     /**
      * Declare a exchange in rabbitMQ, when not already declared.
      *
-     * @param string $name
-     * @param string $type
-     * @param bool $durable
-     * @param bool $autoDelete
-     * @param array $arguments
+     * @param  string  $name
+     * @param  string  $type
+     * @param  bool  $durable
+     * @param  bool  $autoDelete
+     * @param  array  $arguments
      * @return void
      */
     public function declareExchange(
@@ -373,9 +390,10 @@ class RabbitMQQueue extends Queue implements QueueContract
     /**
      * Delete a exchange from rabbitMQ, only when present in RabbitMQ.
      *
-     * @param string $name
-     * @param bool $unused
+     * @param  string  $name
+     * @param  bool  $unused
      * @return void
+     *
      * @throws AMQPProtocolChannelException
      */
     public function deleteExchange(string $name, bool $unused = false): void
@@ -397,8 +415,9 @@ class RabbitMQQueue extends Queue implements QueueContract
      * Checks if the given queue already present/defined in RabbitMQ.
      * Returns false when when the queue is missing.
      *
-     * @param string|null $name
+     * @param  string|null  $name
      * @return bool
+     *
      * @throws AMQPProtocolChannelException
      */
     public function isQueueExists(string $name = null): bool
@@ -422,10 +441,10 @@ class RabbitMQQueue extends Queue implements QueueContract
     /**
      * Declare a queue in rabbitMQ, when not already declared.
      *
-     * @param string $name
-     * @param bool $durable
-     * @param bool $autoDelete
-     * @param array $arguments
+     * @param  string  $name
+     * @param  bool  $durable
+     * @param  bool  $autoDelete
+     * @param  array  $arguments
      * @return void
      */
     public function declareQueue(
@@ -452,10 +471,11 @@ class RabbitMQQueue extends Queue implements QueueContract
     /**
      * Delete a queue from rabbitMQ, only when present in RabbitMQ.
      *
-     * @param string $name
-     * @param bool $if_unused
-     * @param bool $if_empty
+     * @param  string  $name
+     * @param  bool  $if_unused
+     * @param  bool  $if_empty
      * @return void
+     *
      * @throws AMQPProtocolChannelException
      */
     public function deleteQueue(string $name, bool $if_unused = false, bool $if_empty = false): void
@@ -470,9 +490,9 @@ class RabbitMQQueue extends Queue implements QueueContract
     /**
      * Bind a queue to an exchange.
      *
-     * @param string $queue
-     * @param string $exchange
-     * @param string $routingKey
+     * @param  string  $queue
+     * @param  string  $exchange
+     * @param  string  $routingKey
      * @return void
      */
     public function bindQueue(string $queue, string $exchange, string $routingKey = ''): void
@@ -491,7 +511,7 @@ class RabbitMQQueue extends Queue implements QueueContract
     /**
      * Purge the queue of messages.
      *
-     * @param string|null $queue
+     * @param  string|null  $queue
      * @return void
      */
     public function purge(string $queue = null): void
@@ -505,7 +525,7 @@ class RabbitMQQueue extends Queue implements QueueContract
     /**
      * Acknowledge the message.
      *
-     * @param RabbitMQJob $job
+     * @param  RabbitMQJob  $job
      * @return void
      */
     public function ack(RabbitMQJob $job): void
@@ -516,9 +536,8 @@ class RabbitMQQueue extends Queue implements QueueContract
     /**
      * Reject the message.
      *
-     * @param RabbitMQJob $job
-     * @param bool $requeue
-     *
+     * @param  RabbitMQJob  $job
+     * @param  bool  $requeue
      * @return void
      */
     public function reject(RabbitMQJob $job, bool $requeue = false): void
@@ -530,8 +549,9 @@ class RabbitMQQueue extends Queue implements QueueContract
      * Create a AMQP message.
      *
      * @param $payload
-     * @param int $attempts
+     * @param  int  $attempts
      * @return array
+     *
      * @throws JsonException
      */
     protected function createMessage($payload, int $attempts = 0): array
@@ -574,9 +594,9 @@ class RabbitMQQueue extends Queue implements QueueContract
     /**
      * Create a payload array from the given job and data.
      *
-     * @param string|object $job
-     * @param string $queue
-     * @param mixed $data
+     * @param  string|object  $job
+     * @param  string  $queue
+     * @param  mixed  $data
      * @return array
      */
     protected function createPayloadArray($job, $queue, $data = ''): array
@@ -600,6 +620,7 @@ class RabbitMQQueue extends Queue implements QueueContract
      * Close the connection to RabbitMQ.
      *
      * @return void
+     *
      * @throws Exception
      */
     public function close(): void
@@ -618,7 +639,7 @@ class RabbitMQQueue extends Queue implements QueueContract
     /**
      * Get the Queue arguments.
      *
-     * @param string $destination
+     * @param  string  $destination
      * @return array
      */
     protected function getQueueArguments(string $destination): array
@@ -648,8 +669,8 @@ class RabbitMQQueue extends Queue implements QueueContract
     /**
      * Get the Delay queue arguments.
      *
-     * @param string $destination
-     * @param int $ttl
+     * @param  string  $destination
+     * @param  int  $ttl
      * @return array
      */
     protected function getDelayQueueArguments(string $destination, int $ttl): array
@@ -678,6 +699,7 @@ class RabbitMQQueue extends Queue implements QueueContract
      * Using more priority layers, will consume more CPU resources and would affect runtimes.
      *
      * @see https://www.rabbitmq.com/priority.html
+     *
      * @return int
      */
     protected function getQueueMaxPriority(): int
@@ -688,7 +710,7 @@ class RabbitMQQueue extends Queue implements QueueContract
     /**
      * Get the exchange name, or &null; as default value.
      *
-     * @param string|null $exchange
+     * @param  string|null  $exchange
      * @return string|null
      */
     protected function getExchange(string $exchange = null): ?string
@@ -700,7 +722,7 @@ class RabbitMQQueue extends Queue implements QueueContract
      * Get the routing-key for when you use exchanges
      * The default routing-key is the given destination.
      *
-     * @param string $destination
+     * @param  string  $destination
      * @return string
      */
     protected function getRoutingKey(string $destination): string
@@ -711,7 +733,7 @@ class RabbitMQQueue extends Queue implements QueueContract
     /**
      * Get the exchangeType, or AMQPExchangeType::DIRECT as default.
      *
-     * @param string|null $type
+     * @param  string|null  $type
      * @return string
      */
     protected function getExchangeType(?string $type = null): string
@@ -745,7 +767,7 @@ class RabbitMQQueue extends Queue implements QueueContract
     /**
      * Get the exchange for failed messages.
      *
-     * @param string|null $exchange
+     * @param  string|null  $exchange
      * @return string|null
      */
     protected function getFailedExchange(string $exchange = null): ?string
@@ -757,7 +779,7 @@ class RabbitMQQueue extends Queue implements QueueContract
      * Get the routing-key for failed messages
      * The default routing-key is the given destination substituted by '.failed'.
      *
-     * @param string $destination
+     * @param  string  $destination
      * @return string
      */
     protected function getFailedRoutingKey(string $destination): string
@@ -768,7 +790,7 @@ class RabbitMQQueue extends Queue implements QueueContract
     /**
      * Checks if the exchange was already declared.
      *
-     * @param string $name
+     * @param  string  $name
      * @return bool
      */
     protected function isExchangeDeclared(string $name): bool
@@ -779,7 +801,7 @@ class RabbitMQQueue extends Queue implements QueueContract
     /**
      * Checks if the queue was already declared.
      *
-     * @param string $name
+     * @param  string  $name
      * @return bool
      */
     protected function isQueueDeclared(string $name): bool
@@ -790,10 +812,11 @@ class RabbitMQQueue extends Queue implements QueueContract
     /**
      * Declare the destination when necessary.
      *
-     * @param string $destination
-     * @param string|null $exchange
-     * @param string|null $exchangeType
+     * @param  string  $destination
+     * @param  string|null  $exchange
+     * @param  string|null  $exchangeType
      * @return void
+     *
      * @throws AMQPProtocolChannelException
      */
     protected function declareDestination(
@@ -824,7 +847,7 @@ class RabbitMQQueue extends Queue implements QueueContract
      * Determine all publish properties.
      *
      * @param $queue
-     * @param array $options
+     * @param  array  $options
      * @return array
      */
     protected function publishProperties($queue, array $options = []): array
