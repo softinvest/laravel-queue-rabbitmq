@@ -1,18 +1,22 @@
 {
-  "name": "vladimir-yuldashev/laravel-queue-rabbitmq",
+  "name": "softinvest/laravel-queue-rabbitmq",
   "description": "RabbitMQ driver for Laravel Queue. Supports Laravel Horizon.",
   "license": "MIT",
   "authors": [
     {
       "name": "Vladimir Yuldashev",
       "email": "misterio92@gmail.com"
+    },
+    {
+      "name": "softinvest",
+      "email": "c@bragin.su"
     }
   ],
   "require": {
-    "php": "^7.3|^8.0",
+    "php": "^8.0",
     "ext-json": "*",
     "illuminate/queue": "^8.0",
-    "php-amqplib/php-amqplib": "^2.12|^3.0"
+    "softinvest/php-amqplib": "^3.2.0"
   },
   "require-dev": {
     "phpunit/phpunit": "^9.3",
